@@ -564,17 +564,18 @@ function esperaOrden(){
 }
 function onFinalTranscript(raw, isPtt){
   const text = raw.trim();
-  if (!text) return;
+  if (text.length < 2) return;
   if (isPtt){ handleCommand(text); return; }
   if (awaitingCommand){
     clearTimeout(awaitTimer); awaitingCommand = false;
+    if (text.length < 3) { idleStatus(); return; }
     handleCommand(text);
     return;
   }
   const m = text.match(WAKE_RE);
   if (!m) return;
   const after = text.slice(m.index + m[0].length).trim();
-  if (after.length > 1) handleCommand(after);
+  if (after.length > 2) handleCommand(after);
   else esperaOrden();
 }
 
@@ -900,6 +901,9 @@ function localSkills(raw){
 }
 
 /* ═══════════════ Cerebro IA (Gemini) ═══════════════ */
+const MAX_DAILY_QUERIES = 30;
+let lastApiCallAt = 0;
+
 function contadorHoy(){
   const c = store.get("atlas2_counter", { date:"", n:0 });
   if (c.date !== hoyISO()){ c.date = hoyISO(); c.n = 0; }
@@ -908,7 +912,7 @@ function contadorHoy(){
 function sumarConsulta(){ const c = contadorHoy(); c.n++; store.set("atlas2_counter", c); refreshCounter(); }
 function refreshCounter(){
   const c = contadorHoy();
-  $("#counter").innerHTML = "Consultas de IA hoy: <b>"+c.n+"</b> (el plan gratuito da para muchas más de 20).";
+  $("#counter").innerHTML = "Consultas de IA hoy: <b>"+c.n+" / "+MAX_DAILY_QUERIES+"</b> (límite recomendado para el plan gratuito).";
 }
 function buildSystem(){
   const d = new Date();
@@ -1043,6 +1047,19 @@ async function handleCommand(raw){
   /* 2) cerebro IA */
   const tieneClave = !!(profile.apiKey||"").trim();
   if (tieneClave && navigator.onLine){
+    const c = contadorHoy();
+    if (c.n >= MAX_DAILY_QUERIES){
+      const msg = "Has alcanzado el límite diario recomendado ("+MAX_DAILY_QUERIES+" consultas) para cuidar tu cuota de Gemini. Vuelve mañana o usa las funciones locales sin conexión.";
+      addBubble("atlas", msg); speak(msg);
+      return;
+    }
+    const ahora = Date.now();
+    if (ahora - lastApiCallAt < 4000){
+      const msg = "Por favor, espera unos segundos entre consultas para cuidar el límite de la IA.";
+      addBubble("atlas", msg); speak(msg);
+      return;
+    }
+    lastApiCallAt = ahora;
     thinking = true; setPhase("thinking"); setStatus("Pensando…", "hot");
     stopRec();
     const pregunta = esMiDia
@@ -1290,6 +1307,7 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
 cargarAjustesUI(); applyMuteUI(); refreshIaChip(); renderTimers();
 if (!SRClass) $("#srBanner").style.display = "";
 (function bienvenida(){
+  /* Bienvenida 100% local — sin llamadas a Gemini para no consumir la cuota gratuita al abrir la app */
   const tieneClave = !!(profile.apiKey||"").trim();
   if (!tieneClave){
     addBubble("atlas", "", "¡Hola! Soy <b>Atlas</b>, tu asistente personal. Para desbloquear mi inteligencia completa:" +
