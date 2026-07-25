@@ -1,0 +1,80 @@
+ATLAS 2.0 — Tu asistente personal estilo JARVIS
+================================================
+
+Esta carpeta contiene tu aplicación completa. Son 5 archivos:
+  index.html    (la aplicación)
+  sw.js         (para que funcione sin conexión)
+  manifest.json (para instalarla como app)
+  icon-192.png / icon-512.png (los íconos)
+
+Para tenerla en tu celular hay que hacer 2 trámites gratuitos de unos
+5 minutos cada uno. Solo tú puedes hacerlos (necesitan tus cuentas):
+
+
+PASO 1 — Conseguir tu clave de IA gratuita (el "cerebro" de Atlas)
+-------------------------------------------------------------------
+1. Entra en  aistudio.google.com  e inicia sesión con tu cuenta de Google.
+2. Toca "Get API key" (u "Obtener clave de API").
+3. Toca "Crear clave de API" y acepta.
+4. Copia la clave (empieza por "AIza...").
+5. Cuando Atlas esté en tu celular: abre Ajustes (el engranaje) y pégala ahí.
+   NO necesitas tarjeta de crédito. El plan gratuito da de sobra para
+   20 consultas al día.
+
+
+PASO 2 — Publicar Atlas en internet (gratis, con GitHub Pages)
+-------------------------------------------------------------------
+Atlas necesita una dirección web (https) para que el micrófono y el modo
+sin conexión funcionen en el celular.
+
+1. Entra en  github.com  y crea una cuenta gratuita (Sign up).
+2. Ya dentro, toca el "+" (arriba a la derecha) → "New repository".
+3. Nombre del repositorio: atlas  → marca "Public" → "Create repository".
+4. Toca "uploading an existing file" y arrastra los 5 archivos de esta
+   carpeta (index.html, sw.js, manifest.json y los 2 íconos).
+5. Toca "Commit changes" (botón verde).
+6. Ve a "Settings" (del repositorio) → "Pages" (menú izquierdo).
+7. En "Branch" elige "main" y toca "Save".
+8. Espera 1-2 minutos. Tu Atlas quedará en:
+   https://TU-USUARIO.github.io/atlas/
+   (cambia TU-USUARIO por el nombre que elegiste en GitHub)
+
+SUGERENCIA: si me pides ayuda en una próxima conversación, puedo guiarte
+pantalla por pantalla mientras lo haces.
+
+
+PASO 3 — Instalarla en el celular
+-------------------------------------------------------------------
+1. Abre esa dirección en Chrome (Android) o Safari (iPhone).
+2. Menú del navegador → "Añadir a pantalla de inicio" / "Instalar app".
+3. Ábrela desde el ícono: pantalla completa, como una app de verdad.
+4. En Ajustes (engranaje): escribe tu nombre, cuéntale quién eres y tus
+   objetivos, y pega tu clave de IA. Guarda.
+5. Activa el "Modo OK Atlas" y permite el micrófono. ¡Listo!
+
+
+QUÉ HACE ATLAS
+-------------------------------------------------------------------
+- Conversa con IA sobre cualquier tema (busca en Google si hace falta).
+- Te conoce: recuerda quién eres, qué haces, tus objetivos y lo que le
+  pidas guardar ("Recuerda que...", "Apunta que hoy hice...").
+- Resumen "Mi día" con recomendaciones personalizadas.
+- Agenda: "Agenda dentista el martes a las 10" — y con un toque pasa el
+  evento a Google Calendar para que el celular te avise solo.
+- Temporizadores, notas, cálculos, conversiones (esto funciona SIN
+  conexión y sin gastar consultas de IA).
+- Voz: di "OK Atlas" con el modo activado, o pulsa la esfera.
+
+LÍMITES HONESTOS
+-------------------------------------------------------------------
+- No puede LEER el calendario que ya tienes en el celular (los navegadores
+  no lo permiten); sí puede CREAR eventos en él con el enlace de cada evento.
+- Los avisos de Atlas suenan solo con la app abierta. Para avisos con la
+  app cerrada, pasa el evento a Google Calendar (un toque).
+- La escucha "OK Atlas" requiere pantalla encendida y la app abierta.
+- Tus datos (perfil, memoria, agenda, notas y tu clave) viven SOLO en tu
+  celular. Cuando usas la IA, tu pregunta y tu perfil se envían a Google
+  (Gemini) para generar la respuesta. Nada se guarda en otros servidores.
+- Haz copias con "Descargar copia de mis datos" en Ajustes de vez en cuando.
+
+Costo total: $0. Creado el 25/07/2026 con Claude.

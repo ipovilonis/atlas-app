@@ -1,0 +1,1309 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Atlas — Asistente personal</title>
+<meta name="theme-color" content="#0A0E1C">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root{
+    --bg:#0A0E1C; --panel:#121A30; --panel-2:#0F1526; --line:#232D4A;
+    --ink:#EAEEFB; --muted:#93A0C4; --gold:#F0C36A; --gold-deep:#C79A45;
+    --gold-dim:rgba(240,195,106,.35); --user-bubble:#26355C; --err:#E37E76; --ok:#7FC8A9;
+    --radius:14px;
+    --font-body:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+    --font-display:Georgia,"Times New Roman",serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:radial-gradient(1200px 600px at 50% -10%, #131C38 0%, var(--bg) 60%) fixed, var(--bg);
+    color:var(--ink); font-family:var(--font-body); -webkit-font-smoothing:antialiased;
+  }
+  button{font-family:inherit;}
+  .app{min-height:100dvh; max-width:640px; margin:0 auto; display:flex; flex-direction:column;
+       padding:0 14px env(safe-area-inset-bottom,0);}
+
+  /* ── Cabecera ── */
+  .top{display:flex; align-items:center; justify-content:space-between; padding:14px 2px 6px;}
+  .wordmark{font-family:var(--font-display); font-size:1.5rem; letter-spacing:.26em; text-indent:.26em;}
+  .wordmark .star{color:var(--gold); letter-spacing:0; text-indent:0; font-size:1rem; vertical-align:.18em;}
+  .top-icons{display:flex; gap:8px;}
+  .icon-btn{width:38px; height:38px; border-radius:50%; flex:none; background:var(--panel);
+    border:1px solid var(--line); color:var(--muted); display:grid; place-items:center; cursor:pointer;}
+  .icon-btn[aria-pressed="true"]{color:var(--gold); border-color:var(--gold-deep);}
+  .icon-btn svg{width:18px; height:18px; fill:currentColor;}
+
+  /* ── Controles ── */
+  .controls{display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:6px 0 10px;}
+  .wake-ctl{display:flex; align-items:center; gap:9px; background:var(--panel);
+    border:1px solid var(--line); border-radius:999px; padding:7px 12px 7px 14px; cursor:pointer; user-select:none;}
+  .wake-ctl .lbl{font-size:.82rem;}
+  .switch{position:relative; width:38px; height:22px; border-radius:999px; background:#1B2440;
+    border:1px solid var(--line); flex:none; transition:background .2s,border-color .2s;}
+  .switch::after{content:""; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%;
+    background:var(--muted); transition:transform .2s,background .2s;}
+  .wake-ctl[aria-pressed="true"] .switch{background:var(--gold-deep); border-color:var(--gold-deep);}
+  .wake-ctl[aria-pressed="true"] .switch::after{transform:translateX(16px); background:#0A0E1C;}
+  .spacer{flex:1;}
+  .ia-chip{display:flex; align-items:center; gap:7px; background:var(--panel-2); border:1px solid var(--line);
+    border-radius:999px; padding:7px 12px; font-size:.78rem; color:var(--muted); cursor:pointer;}
+  .ia-chip .dot{width:8px; height:8px; border-radius:50%; background:var(--muted);}
+  .ia-chip.on{color:var(--gold); border-color:var(--gold-deep);}
+  .ia-chip.on .dot{background:var(--ok);}
+
+  /* ── Orbe ── */
+  .stage{display:flex; flex-direction:column; align-items:center; padding:8px 0 4px;}
+  .orb-wrap{position:relative; width:150px; height:150px;}
+  .orb-btn{position:absolute; inset:0; border-radius:50%; border:0; padding:0; background:transparent; cursor:pointer;}
+  .orb-btn:focus-visible{outline:2px solid var(--gold); outline-offset:6px;}
+  canvas#orb{width:100%; height:100%; display:block; border-radius:50%;}
+  .ring{position:absolute; inset:-9px; border-radius:50%; pointer-events:none;
+    border:1.5px solid var(--gold-dim); transition:border-color .25s, box-shadow .25s;}
+  .app[data-phase="wake"] .ring{animation:breathe 2.6s ease-in-out infinite;}
+  .app[data-phase="command"] .ring, .app[data-phase="ptt"] .ring{
+    border-color:var(--gold); box-shadow:0 0 26px 2px rgba(240,195,106,.28); animation:breathe 1.1s ease-in-out infinite;}
+  .app[data-phase="thinking"] .ring{border-color:var(--gold); animation:breathe .8s ease-in-out infinite;}
+  .app[data-phase="speaking"] .ring{border-color:var(--gold); box-shadow:0 0 34px 4px rgba(240,195,106,.36);}
+  @keyframes breathe{0%,100%{transform:scale(1);} 50%{transform:scale(1.045);}}
+  .status{margin-top:10px; min-height:1.4em; text-align:center; font-size:.85rem; color:var(--muted);
+    padding:0 10px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .status.hot{color:var(--gold);}
+  .status.err{color:var(--err);}
+
+  /* ── Chat ── */
+  .chat{flex:1; overflow-y:auto; padding:12px 2px 8px; display:flex; flex-direction:column; gap:10px; scroll-behavior:smooth;}
+  .msg{max-width:88%; padding:10px 14px; border-radius:var(--radius); font-size:.94rem; line-height:1.5; overflow-wrap:break-word;}
+  .msg.atlas{align-self:flex-start; background:var(--panel); border:1px solid var(--line); border-bottom-left-radius:4px;}
+  .msg.atlas::before{content:"✶ Atlas"; display:block; font-size:.66rem; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--gold); margin-bottom:4px;}
+  .msg.user{align-self:flex-end; background:var(--user-bubble); border-bottom-right-radius:4px;}
+  .msg a{color:var(--gold); text-decoration:underline; text-underline-offset:3px;}
+  .msg ul{margin:6px 0 0; padding-left:18px; display:flex; flex-direction:column; gap:4px;}
+  .msg .kbd{background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:1px 6px; font-size:.85em; white-space:nowrap;}
+  .msg .accion{display:block; margin-top:8px; padding-top:8px; border-top:1px dashed var(--line);
+    font-size:.82rem; color:var(--ok);}
+
+  /* ── Sugerencias ── */
+  .sugg{display:flex; gap:8px; overflow-x:auto; padding:4px 2px 10px; scrollbar-width:none;}
+  .sugg::-webkit-scrollbar{display:none;}
+  .sugg button{flex:none; background:var(--panel-2); border:1px solid var(--line); color:var(--muted);
+    border-radius:999px; padding:7px 13px; font-size:.8rem; cursor:pointer;}
+  .sugg button:active{color:var(--gold); border-color:var(--gold-deep);}
+
+  /* ── Temporizadores ── */
+  .timers{display:flex; gap:8px; flex-wrap:wrap; padding:0 2px;}
+  .timers:not(:empty){padding-bottom:10px;}
+  .tchip{display:flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--gold-deep);
+    border-radius:999px; padding:6px 8px 6px 14px; font-size:.85rem; font-variant-numeric:tabular-nums;}
+  .tchip .tlabel{color:var(--muted); max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .tchip .tleft{color:var(--gold);}
+  .tchip.done{background:var(--gold-deep); color:#0A0E1C;}
+  .tchip.done .tleft,.tchip.done .tlabel{color:#0A0E1C;}
+  .tchip button{width:22px; height:22px; border-radius:50%; border:0; cursor:pointer; background:var(--panel-2);
+    color:var(--muted); font-size:.8rem; line-height:1; display:grid; place-items:center;}
+
+  /* ── Barra de entrada ── */
+  .bar{display:flex; gap:8px; padding:4px 0 16px;}
+  .bar input{flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink);
+    border-radius:999px; padding:12px 18px; font-size:.95rem; font-family:inherit;}
+  .bar input::placeholder{color:var(--muted);}
+  .bar input:focus{outline:none; border-color:var(--gold-deep);}
+  .bar .send{width:46px; height:46px; border-radius:50%; border:0; flex:none; background:var(--gold);
+    color:#0A0E1C; cursor:pointer; display:grid; place-items:center;}
+  .bar .send svg{width:18px; height:18px; fill:currentColor; margin-left:2px;}
+  .bar .send:active{background:var(--gold-deep);}
+
+  .banner{background:var(--panel); border:1px solid var(--err); border-radius:var(--radius);
+    padding:10px 14px; font-size:.85rem; margin-bottom:10px;}
+
+  /* ── Paneles (hojas) ── */
+  .backdrop{position:fixed; inset:0; background:rgba(4,6,14,.6); opacity:0; pointer-events:none; transition:opacity .25s; z-index:40;}
+  .backdrop.open{opacity:1; pointer-events:auto;}
+  .sheet{position:fixed; left:0; right:0; bottom:0; max-width:640px; margin:0 auto; z-index:50;
+    background:var(--panel-2); border:1px solid var(--line); border-bottom:0; border-radius:18px 18px 0 0;
+    max-height:86dvh; display:flex; flex-direction:column;
+    transform:translateY(102%); transition:transform .28s ease;}
+  .sheet.open{transform:translateY(0);}
+  .sheet-head{display:flex; align-items:center; justify-content:space-between; padding:16px 18px 10px;}
+  .sheet-head h2{font-family:var(--font-display); font-size:1.05rem; letter-spacing:.12em; text-transform:uppercase; font-weight:normal;}
+  .sheet-head h2 .star{color:var(--gold);}
+  .sheet-body{overflow-y:auto; padding:4px 18px 26px; display:flex; flex-direction:column; gap:14px;}
+  .field label{display:block; font-size:.72rem; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); margin-bottom:6px;}
+  .field input[type=text], .field input[type=password], .field input[type=date], .field input[type=time],
+  .field textarea, .field select{
+    width:100%; background:var(--panel); border:1px solid var(--line); color:var(--ink);
+    border-radius:10px; padding:10px 12px; font-size:.92rem; font-family:inherit;}
+  .field textarea{min-height:72px; resize:vertical;}
+  .field input:focus, .field textarea:focus, .field select:focus{outline:none; border-color:var(--gold-deep);}
+  .btn{background:var(--gold); color:#0A0E1C; border:0; border-radius:999px; padding:11px 20px;
+    font-size:.9rem; cursor:pointer; font-weight:600;}
+  .btn:active{background:var(--gold-deep);}
+  .btn.ghost{background:var(--panel); color:var(--muted); border:1px solid var(--line); font-weight:normal;}
+  .btn.danger{background:transparent; color:var(--err); border:1px solid var(--err); font-weight:normal;}
+  .btn-row{display:flex; gap:8px; flex-wrap:wrap;}
+  .hint{font-size:.8rem; color:var(--muted); line-height:1.5;}
+  .hint a{color:var(--gold);}
+  details.como{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 12px;}
+  details.como summary{cursor:pointer; font-size:.85rem; color:var(--gold);}
+  details.como ol{margin:8px 0 0 18px; font-size:.84rem; color:var(--muted); display:flex; flex-direction:column; gap:6px;}
+  .list{display:flex; flex-direction:column; gap:8px;}
+  .row{display:flex; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--line);
+    border-radius:10px; padding:10px 12px; font-size:.88rem;}
+  .row .grow{flex:1; min-width:0; overflow-wrap:break-word;}
+  .row small{color:var(--muted);}
+  .row .datebadge{flex:none; text-align:center; background:var(--panel-2); border:1px solid var(--line);
+    border-radius:8px; padding:4px 8px; font-size:.72rem; color:var(--gold); font-variant-numeric:tabular-nums;}
+  .row a{color:var(--gold); font-size:.78rem; text-decoration:none; border:1px solid var(--gold-deep);
+    border-radius:999px; padding:4px 9px; white-space:nowrap;}
+  .row .del{width:24px; height:24px; border-radius:50%; border:0; background:var(--panel-2); color:var(--muted);
+    cursor:pointer; flex:none;}
+  .empty{color:var(--muted); font-size:.85rem; text-align:center; padding:12px 0;}
+  .counter{font-size:.8rem; color:var(--muted);}
+  .counter b{color:var(--gold);}
+  .keywrap{display:flex; gap:8px;}
+  .keywrap input{flex:1;}
+  .keywrap .icon-btn{width:42px; height:42px; border-radius:10px;}
+
+  @media (prefers-reduced-motion: reduce){
+    .ring{animation:none !important;}
+    .chat{scroll-behavior:auto;}
+    .sheet{transition:none;}
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app" data-phase="off">
+  <header class="top">
+    <div class="wordmark"><span class="star">✶</span> Atlas</div>
+    <div class="top-icons">
+      <button class="icon-btn" id="openAgenda" title="Agenda" aria-label="Abrir agenda">
+        <svg viewBox="0 0 24 24"><path d="M7 2v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2H7zm-2 8h14v10H5V10zm2 2v2h2v-2H7zm4 0v2h2v-2h-2zm4 0v2h2v-2h-2zM7 16v2h2v-2H7zm4 0v2h2v-2h-2z"/></svg>
+      </button>
+      <button class="icon-btn" id="openMemoria" title="Memoria" aria-label="Abrir memoria">
+        <svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 2.4 1.2 4.5 3 5.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3c1.8-1.2 3-3.3 3-5.7a7 7 0 0 0-7-7zm-3 18h6v1a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-1z"/></svg>
+      </button>
+      <button class="icon-btn" id="openAjustes" title="Ajustes" aria-label="Abrir ajustes">
+        <svg viewBox="0 0 24 24"><path d="M19.4 13a7.8 7.8 0 0 0 .1-1 7.8 7.8 0 0 0-.1-1l2.1-1.7a.5.5 0 0 0 .1-.6l-2-3.5a.5.5 0 0 0-.6-.2l-2.5 1a7.6 7.6 0 0 0-1.7-1l-.4-2.6a.5.5 0 0 0-.5-.4h-4a.5.5 0 0 0-.5.4l-.4 2.6a7.6 7.6 0 0 0-1.7 1l-2.5-1a.5.5 0 0 0-.6.2l-2 3.5a.5.5 0 0 0 .1.6L4.5 11a7.8 7.8 0 0 0-.1 1 7.8 7.8 0 0 0 .1 1l-2.1 1.7a.5.5 0 0 0-.1.6l2 3.5c.1.2.4.3.6.2l2.5-1a7.6 7.6 0 0 0 1.7 1l.4 2.6c0 .2.2.4.5.4h4c.2 0 .4-.2.5-.4l.4-2.6a7.6 7.6 0 0 0 1.7-1l2.5 1c.2.1.5 0 .6-.2l2-3.5a.5.5 0 0 0-.1-.6L19.4 13zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="controls">
+    <button class="wake-ctl" id="wakeBtn" aria-pressed="false">
+      <span class="lbl">Modo «OK Atlas»</span>
+      <span class="switch" aria-hidden="true"></span>
+    </button>
+    <button class="icon-btn" id="muteBtn" aria-pressed="true" title="Voz activada" aria-label="Activar o silenciar la voz de Atlas">
+      <svg id="volOn" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>
+      <svg id="volOff" viewBox="0 0 24 24" style="display:none"><path d="M3 9v6h4l5 5V4L7 9H3zm13.6 3 2.7-2.7-1.4-1.4-2.7 2.7-2.7-2.7-1.4 1.4 2.7 2.7-2.7 2.7 1.4 1.4 2.7-2.7 2.7 2.7 1.4-1.4-2.7-2.7z"/></svg>
+    </button>
+    <span class="spacer"></span>
+    <button class="ia-chip" id="iaChip"><span class="dot"></span><span id="iaChipTxt">IA sin configurar</span></button>
+  </div>
+
+  <div id="srBanner" class="banner" style="display:none">
+    Este navegador no soporta reconocimiento de voz. En Android usa <b>Chrome</b>; en iPhone usa <b>Safari</b>.
+    Puedes escribirme abajo y te respondo con voz y texto.
+  </div>
+
+  <section class="stage">
+    <div class="orb-wrap">
+      <div class="ring" aria-hidden="true"></div>
+      <button class="orb-btn" id="orbBtn" aria-label="Pulsa para hablar con Atlas">
+        <canvas id="orb" width="150" height="150"></canvas>
+      </button>
+    </div>
+    <div class="status" id="status">Pulsa la esfera para hablar, o activa el modo «OK Atlas»</div>
+  </section>
+
+  <main class="chat" id="chat" aria-live="polite"></main>
+
+  <div class="sugg" id="sugg">
+    <button data-q="Mi día">☀ Mi día</button>
+    <button data-q="¿Qué tengo esta semana?">Mi semana</button>
+    <button data-fill="Agenda ">＋ Evento</button>
+    <button data-fill="Recuerda que ">＋ Recuerdo</button>
+    <button data-q="Pon un temporizador de 10 minutos">Temporizador</button>
+    <button data-q="ayuda">¿Qué sabes hacer?</button>
+  </div>
+
+  <div class="timers" id="timers"></div>
+
+  <form class="bar" id="form">
+    <input id="input" type="text" placeholder="Escríbele a Atlas…" autocomplete="off" enterkeyhint="send">
+    <button class="send" type="submit" aria-label="Enviar">
+      <svg viewBox="0 0 24 24"><path d="M2 21 23 12 2 3v7l15 2-15 2v7z"/></svg>
+    </button>
+  </form>
+</div>
+
+<!-- ── Paneles ── -->
+<div class="backdrop" id="backdrop"></div>
+
+<div class="sheet" id="sheetAjustes" aria-hidden="true">
+  <div class="sheet-head"><h2><span class="star">✶</span> Ajustes</h2>
+    <button class="icon-btn" data-close aria-label="Cerrar"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="2" fill="none"/></svg></button>
+  </div>
+  <div class="sheet-body">
+    <div class="field"><label for="inNombre">Tu nombre</label>
+      <input type="text" id="inNombre" placeholder="¿Cómo quieres que te llame?"></div>
+    <div class="field"><label for="inSobreMi">Sobre ti (quién eres, qué haces)</label>
+      <textarea id="inSobreMi" placeholder="Ej.: Soy diseñadora, trabajo desde casa, tengo dos hijos, me interesa la fotografía…"></textarea></div>
+    <div class="field"><label for="inObjetivos">Tus objetivos</label>
+      <textarea id="inObjetivos" placeholder="Ej.: Ahorrar para un viaje en diciembre, hacer ejercicio 3 veces por semana, aprender inglés…"></textarea></div>
+    <div class="field"><label for="inKey">Clave de IA (Google Gemini, gratis)</label>
+      <div class="keywrap">
+        <input type="password" id="inKey" placeholder="Pega aquí tu clave" autocomplete="off">
+        <button class="icon-btn" id="verKey" type="button" aria-label="Mostrar u ocultar la clave"><svg viewBox="0 0 24 24"><path d="M12 5c-5 0-9 4.5-10 7 1 2.5 5 7 10 7s9-4.5 10-7c-1-2.5-5-7-10-7zm0 11.5A4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 0 1 0 9zm0-7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/></svg></button>
+      </div>
+      <details class="como">
+        <summary>¿Cómo consigo mi clave gratis? (5 minutos)</summary>
+        <ol>
+          <li>Entra en <b>aistudio.google.com</b> e inicia sesión con tu cuenta de Google.</li>
+          <li>Toca <b>«Get API key»</b> (u «Obtener clave de API»).</li>
+          <li>Toca <b>«Crear clave de API»</b> y acepta.</li>
+          <li>Copia la clave (empieza por «AIza…») y pégala aquí arriba.</li>
+          <li>No necesitas tarjeta: el plan gratuito da de sobra para 20 consultas al día.</li>
+        </ol>
+      </details>
+    </div>
+    <div class="field"><label for="selModelo">Modelo de IA</label>
+      <select id="selModelo">
+        <option value="gemini-2.5-flash">Gemini 2.5 Flash (recomendado)</option>
+        <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (más rápido)</option>
+        <option value="gemini-2.0-flash">Gemini 2.0 Flash (alternativo)</option>
+      </select></div>
+    <div class="field"><label for="selDialecto">Voz y acento</label>
+      <select id="selDialecto">
+        <option value="es-ES">Español (España)</option>
+        <option value="es-MX">Español (México)</option>
+        <option value="es-US">Español (EE. UU.)</option>
+        <option value="es-AR">Español (Argentina)</option>
+        <option value="es-CO">Español (Colombia)</option>
+      </select></div>
+    <div class="counter" id="counter"></div>
+    <button class="btn" id="guardarAjustes">Guardar ajustes</button>
+    <div class="btn-row">
+      <button class="btn ghost" id="btnExport">Descargar copia de mis datos</button>
+      <button class="btn ghost" id="btnImport">Restaurar copia</button>
+      <input type="file" id="fileImport" accept=".json" style="display:none">
+      <button class="btn danger" id="btnBorrarTodo">Borrar todos mis datos</button>
+    </div>
+    <p class="hint">Todo se guarda en este dispositivo. Tu clave nunca sale de aquí: solo se usa para
+      hablar directamente con Google. Cuando usas la IA, tu pregunta (y tu perfil, para que te conozca)
+      se envía a Gemini; el resto funciona sin conexión.</p>
+  </div>
+</div>
+
+<div class="sheet" id="sheetAgenda" aria-hidden="true">
+  <div class="sheet-head"><h2><span class="star">✶</span> Agenda</h2>
+    <button class="icon-btn" data-close aria-label="Cerrar"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="2" fill="none"/></svg></button>
+  </div>
+  <div class="sheet-body">
+    <div class="list" id="agendaList"></div>
+    <div class="field"><label for="evTitulo">Nuevo evento</label>
+      <input type="text" id="evTitulo" placeholder="¿Qué?"></div>
+    <div class="btn-row">
+      <div class="field" style="flex:1"><input type="date" id="evFecha" aria-label="Fecha"></div>
+      <div class="field" style="flex:1"><input type="time" id="evHora" aria-label="Hora (opcional)"></div>
+    </div>
+    <button class="btn" id="btnAddEvento">Añadir a la agenda</button>
+    <p class="hint">Con el botón <b>Google Calendar</b> de cada evento lo pasas al calendario de tu celular
+      con un toque — así te avisará aunque Atlas esté cerrado. También puedes dictarlo:
+      «Agenda dentista el martes a las 10».</p>
+  </div>
+</div>
+
+<div class="sheet" id="sheetMemoria" aria-hidden="true">
+  <div class="sheet-head"><h2><span class="star">✶</span> Memoria</h2>
+    <button class="icon-btn" data-close aria-label="Cerrar"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="2" fill="none"/></svg></button>
+  </div>
+  <div class="sheet-body">
+    <div class="list" id="memList"></div>
+    <div class="field"><label for="memNueva">Nuevo recuerdo</label>
+      <input type="text" id="memNueva" placeholder="Ej.: Mi hermana se llama Carla"></div>
+    <button class="btn" id="btnAddMem">Guardar recuerdo</button>
+    <p class="hint">Atlas usa estos recuerdos (y tu perfil de Ajustes) para conocerte. Se guardan cuando
+      le dices «recuerda que…», «apunta que hoy hice…», o desde aquí.</p>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ═══════════════ Estado y almacenamiento ═══════════════ */
+const $ = s => document.querySelector(s);
+const app = $("#app"), chatEl = $("#chat"), statusEl = $("#status");
+const SRClass = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v===null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+const profile  = store.get("atlas2_profile", { nombre:"", sobreMi:"", objetivos:"", apiKey:"", modelo:"gemini-2.5-flash", lang:"es-ES", muted:false });
+let   memories = store.get("atlas2_memories", []);   // [{texto, fecha}]
+let   agenda   = store.get("atlas2_agenda", []);     // [{id, titulo, fecha:"YYYY-MM-DD", hora:"HH:MM"|null, avisado}]
+let   notes    = store.get("atlas2_notes", []);
+let   history  = store.get("atlas2_history", []);    // [{role:"user"|"model", text}]
+const saveProfile  = () => store.set("atlas2_profile", profile);
+const saveMemories = () => store.set("atlas2_memories", memories);
+const saveAgenda   = () => store.set("atlas2_agenda", agenda);
+const saveNotes    = () => store.set("atlas2_notes", notes);
+const saveHistory  = () => { history = history.slice(-40); store.set("atlas2_history", history); };
+
+let wakeMode=false, awaitingCommand=false, awaitTimer=null;
+let rec=null, recRunning=false, restartTimer=null, pttActive=false;
+let speaking=false, wakeLock=null, lastFinal="", lastFinalAt=0, audioCtx=null;
+let thinking=false;
+
+/* ═══════════════ Utilidades ═══════════════ */
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function pad(n){ return String(n).padStart(2,"0"); }
+function hoyISO(d){ const x = d||new Date(); return x.getFullYear()+"-"+pad(x.getMonth()+1)+"-"+pad(x.getDate()); }
+function fmtNum(n){ if(!isFinite(n)) return "∞"; return (Math.round(n*100)/100).toLocaleString("es-ES",{maximumFractionDigits:2}); }
+function fechaBonita(iso){
+  const [y,m,d] = iso.split("-").map(Number);
+  return new Date(y, m-1, d).toLocaleDateString("es-ES", { weekday:"long", day:"numeric", month:"long" });
+}
+function evDate(ev){ const [y,m,d]=ev.fecha.split("-").map(Number); const [h,mi]=(ev.hora||"09:00").split(":").map(Number); return new Date(y,m-1,d,h,mi); }
+/* Markdown mínimo → HTML (escapando primero) */
+function md(t){
+  const lines = String(t).trim().split("\n");
+  let html = "", inList = false;
+  const inline = s => {
+    s = esc(s);
+    s = s.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+    s = s.replace(/\[([^\]]+)\]\((https?:[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    s = s.replace(/(^|[^"'>=\w])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+    return s;
+  };
+  for (const ln of lines){
+    const m = ln.match(/^\s*(?:[-•*]|\d+\.)\s+(.*)/);
+    if (m){ if(!inList){ html += "<ul>"; inList = true; } html += "<li>" + inline(m[1]) + "</li>"; }
+    else { if(inList){ html += "</ul>"; inList = false; } if(ln.trim()) html += (html?"<br>":"") + inline(ln); }
+  }
+  if (inList) html += "</ul>";
+  return html;
+}
+function plainForSpeech(t){
+  return String(t)
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/[*_#`]/g, "")
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "")
+    .replace(/\s+/g, " ").trim();
+}
+function searchLink(q){
+  return '<a href="https://www.google.com/search?q=' + encodeURIComponent(q) + '" target="_blank" rel="noopener">Buscar «' + esc(q) + '» en Google ↗</a>';
+}
+function gcalLink(ev){
+  const d = ev.fecha.replace(/-/g,"");
+  let dates;
+  if (ev.hora){
+    const [h,m] = ev.hora.split(":").map(Number);
+    const end = new Date(0,0,0,h+1,m);
+    dates = d+"T"+pad(h)+pad(m)+"00/"+d+"T"+pad(end.getHours())+pad(end.getMinutes())+"00";
+  } else {
+    const [y,m,dd] = ev.fecha.split("-").map(Number);
+    const nx = new Date(y, m-1, dd+1);
+    dates = d+"/"+hoyISO(nx).replace(/-/g,"");
+  }
+  return "https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(ev.titulo) + "&dates=" + dates;
+}
+
+/* ═══════════════ UI: estado y burbujas ═══════════════ */
+function setPhase(p){ app.dataset.phase = p; }
+function setStatus(text, cls){ statusEl.textContent = text; statusEl.className = "status" + (cls ? " "+cls : ""); }
+function idleStatus(){
+  if (speaking || thinking) return;
+  if (wakeMode){ setPhase("wake"); setStatus("Escuchando… di «OK Atlas»"); }
+  else { setPhase("off"); setStatus("Pulsa la esfera para hablar, o activa el modo «OK Atlas»"); }
+}
+function addBubble(who, text, html){
+  const div = document.createElement("div");
+  div.className = "msg " + who;
+  if (html) div.innerHTML = html; else div.textContent = text;
+  chatEl.appendChild(div);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return div;
+}
+
+/* ═══════════════ Sonidos ═══════════════ */
+function ensureAudio(){
+  if (!audioCtx){ const AC = window.AudioContext||window.webkitAudioContext; if (AC) audioCtx = new AC(); }
+  if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+  return audioCtx;
+}
+function beep(freq, dur, delay){
+  const ac = ensureAudio(); if (!ac) return;
+  const t = ac.currentTime + (delay||0);
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = "sine"; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.18, t+0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+  o.connect(g); g.connect(ac.destination);
+  o.start(t); o.stop(t+dur+0.05);
+}
+function chime(){ beep(660,.14); beep(990,.18,.12); }
+function alarmSound(){ [0,.35,.7].forEach(d => { beep(880,.22,d); beep(1175,.22,d+.11); }); if (navigator.vibrate) navigator.vibrate([200,100,200]); }
+
+/* ═══════════════ Voz (TTS) ═══════════════ */
+let voices = [];
+function loadVoices(){ voices = speechSynthesis.getVoices(); }
+if ("speechSynthesis" in window){ loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
+function pickVoice(){
+  const lang = profile.lang.toLowerCase();
+  const es = voices.filter(v => v.lang && v.lang.toLowerCase().replace("_","-").startsWith("es"));
+  if (!es.length) return null;
+  const exact = es.filter(v => v.lang.toLowerCase().replace("_","-") === lang);
+  const pool = exact.length ? exact : es;
+  return pool.find(v => /google/i.test(v.name)) || pool[0];
+}
+let speakWatch = null, speakSeq = 0;
+function speak(text, onDone){
+  const myId = ++speakSeq;
+  let finished = false;
+  const done = () => {
+    if (finished || myId !== speakSeq) return;
+    finished = true;
+    clearTimeout(speakWatch);
+    speaking = false; idleStatus(); if (onDone) onDone(); resumeListening();
+  };
+  const clean = plainForSpeech(text);
+  if (profile.muted || !("speechSynthesis" in window) || !clean){ done(); return; }
+  stopRec();
+  speaking = true;
+  clearTimeout(speakWatch);
+  speakWatch = setTimeout(done, Math.min(45000, 4000 + clean.length*90));
+  setPhase("speaking"); setStatus("Hablando…", "hot");
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(clean);
+  u.lang = profile.lang;
+  const v = pickVoice(); if (v) u.voice = v;
+  u.onend = done; u.onerror = done;
+  speechSynthesis.speak(u);
+}
+
+/* ═══════════════ Reconocimiento de voz ═══════════════ */
+function newRec(continuous){
+  const r = new SRClass();
+  r.lang = profile.lang; r.continuous = continuous; r.interimResults = true; r.maxAlternatives = 1;
+  return r;
+}
+function stopRec(){
+  clearTimeout(restartTimer);
+  if (rec){
+    rec.onend = null; rec.onresult = null; rec.onerror = null;
+    try{ rec.stop(); }catch(e){} try{ rec.abort(); }catch(e){}
+    rec = null;
+  }
+  recRunning = false;
+}
+function resumeListening(){ if (wakeMode && !speaking && !pttActive) startWakeRec(); }
+function micDenied(){
+  wakeMode = false; awaitingCommand = false;
+  $("#wakeBtn").setAttribute("aria-pressed","false");
+  stopRec(); releaseWakeLock(); setPhase("off");
+  setStatus("Permiso de micrófono denegado. Actívalo en los ajustes del navegador.", "err");
+}
+function startWakeRec(){
+  if (!SRClass || !wakeMode || speaking || pttActive) return;
+  stopRec();
+  rec = newRec(true);
+  rec.onresult = ev => handleRecResults(ev, false);
+  rec.onerror = ev => { if (ev.error==="not-allowed"||ev.error==="service-not-allowed") micDenied(); };
+  rec.onend = () => {
+    recRunning = false;
+    if (wakeMode && !speaking && !pttActive){
+      clearTimeout(restartTimer);
+      restartTimer = setTimeout(startWakeRec, 300);
+    }
+  };
+  try{ rec.start(); recRunning = true; }catch(e){}
+  if (!awaitingCommand) idleStatus();
+}
+function startPtt(){
+  if (!SRClass){ setStatus("Este navegador no soporta voz; escríbeme abajo.", "err"); return; }
+  ensureAudio(); stopRec();
+  pttActive = true;
+  setPhase("ptt"); setStatus("Te escucho…", "hot"); chime();
+  rec = newRec(false);
+  rec.onresult = ev => handleRecResults(ev, true);
+  rec.onerror = ev => {
+    pttActive = false;
+    if (ev.error==="not-allowed"||ev.error==="service-not-allowed") micDenied();
+    else { idleStatus(); resumeListening(); }
+  };
+  rec.onend = () => { recRunning=false; pttActive=false; idleStatus(); resumeListening(); };
+  try{ rec.start(); recRunning = true; }catch(e){ pttActive = false; }
+}
+function handleRecResults(ev, isPtt){
+  let interim = "";
+  for (let i = ev.resultIndex; i < ev.results.length; i++){
+    const res = ev.results[i];
+    const tr = (res[0].transcript||"").trim();
+    if (!tr) continue;
+    if (res.isFinal){
+      if (tr === lastFinal && Date.now()-lastFinalAt < 1500) continue;
+      lastFinal = tr; lastFinalAt = Date.now();
+      onFinalTranscript(tr, isPtt);
+    } else interim = tr;
+  }
+  if (interim && (isPtt || awaitingCommand)) setStatus("“"+interim+"”", "hot");
+}
+const WAKE_RE = /(?:\b(?:ok|okay|okey|oye|hola|hey|eh|escucha)[,.\s]+atlas\b|^atlas\b)[,.]?\s*/i;
+function esperaOrden(){
+  chime();
+  awaitingCommand = true;
+  setPhase("command"); setStatus("Te escucho…", "hot");
+  clearTimeout(awaitTimer);
+  awaitTimer = setTimeout(() => { awaitingCommand = false; idleStatus(); }, 9000);
+}
+function onFinalTranscript(raw, isPtt){
+  const text = raw.trim();
+  if (!text) return;
+  if (isPtt){ handleCommand(text); return; }
+  if (awaitingCommand){
+    clearTimeout(awaitTimer); awaitingCommand = false;
+    handleCommand(text);
+    return;
+  }
+  const m = text.match(WAKE_RE);
+  if (!m) return;
+  const after = text.slice(m.index + m[0].length).trim();
+  if (after.length > 1) handleCommand(after);
+  else esperaOrden();
+}
+
+/* ═══════════════ Wake Lock ═══════════════ */
+async function requestWakeLock(){ try{ if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); }catch(e){} }
+function releaseWakeLock(){ if (wakeLock){ try{ wakeLock.release(); }catch(e){} wakeLock = null; } }
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && wakeMode){ requestWakeLock(); resumeListening(); }
+});
+
+/* ═══════════════ Temporizadores ═══════════════ */
+const timers = []; let timerSeq = 0;
+function fmtLeft(ms){
+  const s = Math.max(0, Math.round(ms/1000));
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), ss = s%60;
+  return h ? h+":"+pad(m)+":"+pad(ss) : m+":"+pad(ss);
+}
+function renderTimers(){
+  const box = $("#timers"); box.innerHTML = "";
+  for (const t of timers){
+    const chip = document.createElement("div");
+    chip.className = "tchip" + (t.done ? " done" : "");
+    const left = document.createElement("span");
+    left.className = "tleft"; left.textContent = t.done ? "¡Listo!" : fmtLeft(t.endsAt - Date.now());
+    chip.appendChild(left);
+    if (t.label){ const lb = document.createElement("span"); lb.className="tlabel"; lb.textContent=t.label; chip.appendChild(lb); }
+    const x = document.createElement("button");
+    x.textContent = "✕"; x.setAttribute("aria-label","Cancelar temporizador");
+    x.onclick = () => removeTimer(t.id);
+    chip.appendChild(x);
+    box.appendChild(chip);
+  }
+}
+function removeTimer(id){
+  const i = timers.findIndex(t => t.id === id);
+  if (i >= 0){ clearTimeout(timers[i].timeout); clearInterval(timers[i].tick); timers.splice(i,1); renderTimers(); }
+}
+function createTimer(ms, label){
+  const t = { id:++timerSeq, endsAt:Date.now()+ms, label:label||"", done:false };
+  t.tick = setInterval(renderTimers, 1000);
+  t.timeout = setTimeout(() => {
+    t.done = true; renderTimers(); clearInterval(t.tick);
+    alarmSound();
+    const msg = t.label ? "¡Tiempo! Tu temporizador «"+t.label+"» ha terminado." : "¡Tiempo! Tu temporizador ha terminado.";
+    addBubble("atlas", msg); speak(msg);
+    setTimeout(() => removeTimer(t.id), 8000);
+  }, ms);
+  timers.push(t); renderTimers();
+}
+function parseDurationMs(low){
+  let total = 0;
+  const words = { un:1, una:1, uno:1, dos:2, tres:3, cuatro:4, cinco:5, seis:6, siete:7, ocho:8, nueve:9,
+    diez:10, once:11, doce:12, quince:15, veinte:20, veinticinco:25, treinta:30, cuarenta:40,
+    cincuenta:50, sesenta:60, noventa:90, media:0.5, medio:0.5 };
+  const re = /((?:\d+[.,]?\d*)|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|quince|veinte|veinticinco|treinta|cuarenta|cincuenta|sesenta|noventa|media|medio)\s*(segundos?|minutos?|horas?)/g;
+  let m;
+  while ((m = re.exec(low))){
+    const n = (m[1] in words) ? words[m[1]] : parseFloat(m[1].replace(",", "."));
+    if (isNaN(n)) continue;
+    if (m[2].startsWith("segundo")) total += n*1000;
+    else if (m[2].startsWith("minuto")) total += n*60000;
+    else total += n*3600000;
+  }
+  if (!total && /media hora/.test(low)) total = 1800000;
+  return total;
+}
+
+/* ═══════════════ Agenda ═══════════════ */
+let agSeq = agenda.reduce((a,e)=>Math.max(a, e.id||0), 0);
+function addEvento(titulo, fecha, hora){
+  const ev = { id:++agSeq, titulo:titulo.trim(), fecha, hora:hora||null, avisado:false };
+  agenda.push(ev);
+  agenda.sort((a,b) => evDate(a) - evDate(b));
+  saveAgenda(); renderAgenda();
+  return ev;
+}
+function renderAgenda(){
+  const box = $("#agendaList"); box.innerHTML = "";
+  const hoy = hoyISO();
+  const list = agenda.filter(e => e.fecha >= hoy).slice(0, 30);
+  if (!list.length){ box.innerHTML = '<div class="empty">No hay eventos próximos.</div>'; return; }
+  for (const ev of list){
+    const row = document.createElement("div"); row.className = "row";
+    const [ , m, d] = ev.fecha.split("-");
+    row.innerHTML =
+      '<span class="datebadge">'+d+"/"+m+(ev.hora?"<br>"+ev.hora:"")+"</span>" +
+      '<span class="grow">'+esc(ev.titulo)+"<br><small>"+esc(fechaBonita(ev.fecha))+"</small></span>" +
+      '<a href="'+gcalLink(ev)+'" target="_blank" rel="noopener">Google Calendar</a>';
+    const del = document.createElement("button");
+    del.className = "del"; del.textContent = "✕"; del.setAttribute("aria-label","Borrar evento");
+    del.onclick = () => { agenda = agenda.filter(x => x.id !== ev.id); saveAgenda(); renderAgenda(); };
+    row.appendChild(del);
+    box.appendChild(row);
+  }
+}
+/* aviso 15 min antes, mientras Atlas esté abierto */
+setInterval(() => {
+  const now = Date.now();
+  for (const ev of agenda){
+    if (!ev.hora || ev.avisado) continue;
+    const diff = evDate(ev).getTime() - now;
+    if (diff > 0 && diff <= 15*60000){
+      ev.avisado = true; saveAgenda();
+      alarmSound();
+      const msg = "Recuerda: «"+ev.titulo+"» a las "+ev.hora+".";
+      addBubble("atlas", msg); speak(msg);
+    }
+  }
+}, 30000);
+
+/* fechas en lenguaje natural (para el modo sin conexión) */
+const DIAS = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
+const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+function normLow(s){ return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,""); }
+function extraerFecha(low){
+  const n = normLow(low);
+  const base = new Date();
+  if (/pasado manana/.test(n)){ base.setDate(base.getDate()+2); return hoyISO(base); }
+  if (/manana/.test(n)){ base.setDate(base.getDate()+1); return hoyISO(base); }
+  if (/\bhoy\b/.test(n)) return hoyISO(base);
+  for (let i=0;i<7;i++){
+    const dia = normLow(DIAS[i]);
+    if (new RegExp("\\b(?:el |este |proximo |el proximo )?"+dia+"\\b").test(n)){
+      const d = new Date(); let delta = (i - d.getDay() + 7) % 7; if (delta===0) delta = 7;
+      d.setDate(d.getDate()+delta); return hoyISO(d);
+    }
+  }
+  let m = n.match(/\bel (\d{1,2})(?: de (\w+))?\b/);
+  if (m){
+    const d = new Date(); let mes = d.getMonth();
+    if (m[2]){ const mi = MESES.findIndex(x => normLow(x)===m[2]); if (mi>=0) mes = mi; }
+    const f = new Date(d.getFullYear(), mes, parseInt(m[1],10));
+    if (f < d && !m[2]) f.setMonth(f.getMonth()+1);
+    if (f < d && m[2]) f.setFullYear(f.getFullYear()+1);
+    return hoyISO(f);
+  }
+  return null;
+}
+function extraerHora(low){
+  const n = normLow(low);
+  if (/mediodia/.test(n)) return "12:00";
+  const m = n.match(/a las? (\d{1,2})(?::(\d{2}))?\s*(de la manana|de la tarde|de la noche|am|pm)?/);
+  if (!m) return null;
+  let h = parseInt(m[1],10); const mi = m[2]||"00";
+  if ((m[3]==="de la tarde"||m[3]==="de la noche"||m[3]==="pm") && h < 12) h += 12;
+  if ((m[3]==="de la manana"||m[3]==="am") && h === 12) h = 0;
+  return pad(h)+":"+mi;
+}
+function agendaLocalAdd(raw){
+  const low = raw.toLowerCase();
+  if (!/^(?:agenda(?:me)?|apunta en (?:la|mi) agenda|anota en (?:la|mi) agenda|nuevo evento|programa)/.test(normLow(low))) return null;
+  const fecha = extraerFecha(low), hora = extraerHora(low);
+  if (!fecha) return { text:"¿Para qué día? Dime por ejemplo: «Agenda dentista el martes a las 10»." };
+  let titulo = raw
+    .replace(/^(?:agenda(?:me)?|apunta en (?:la|mi) agenda|anota en (?:la|mi) agenda|nuevo evento|programa)\s*/i,"")
+    .replace(/\b(pasado mañana|mañana|hoy)\b/gi,"")
+    .replace(/\b(?:el |este |próximo |proximo )?(domingo|lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado)\b/gi,"")
+    .replace(/\bel \d{1,2}( de \w+)?\b/gi,"")
+    .replace(/a las? \d{1,2}(:\d{2})?( de la (mañana|manana|tarde|noche)| am| pm)?/gi,"")
+    .replace(/\bpara\b/gi,"").replace(/\s+/g," ").trim();
+  if (!titulo) titulo = "Evento";
+  const ev = addEvento(titulo, fecha, hora);
+  return {
+    text: "Agendado: «"+ev.titulo+"» el "+fechaBonita(fecha)+(hora? " a las "+hora : "")+". Te avisaré si Atlas está abierto; para que te avise el celular, pásalo a tu calendario con el enlace.",
+    html: "✓ Agendado: <b>"+esc(ev.titulo)+"</b> — "+esc(fechaBonita(fecha))+(hora? ", "+hora : "")+'<span class="accion"><a href="'+gcalLink(ev)+'" target="_blank" rel="noopener">Añadir al calendario del celular (Google Calendar) ↗</a></span>'
+  };
+}
+function agendaConsulta(low){
+  const n = normLow(low);
+  if (!/que tengo|que hay en (la|mi) agenda|mi agenda|mis eventos|que planes tengo/.test(n)) return null;
+  const hoy = new Date(); const hoyI = hoyISO();
+  let desde = hoyI, hasta = hoyI, etiqueta = "hoy";
+  if (/manana/.test(n) && !/pasado/.test(n)){ const d=new Date(); d.setDate(d.getDate()+1); desde=hasta=hoyISO(d); etiqueta="mañana"; }
+  else if (/semana/.test(n)){ const d=new Date(); d.setDate(d.getDate()+7); hasta=hoyISO(d); etiqueta="esta semana"; }
+  else {
+    const f = extraerFecha(low);
+    if (f && f !== hoyI){ desde = hasta = f; etiqueta = "el "+fechaBonita(f); }
+  }
+  const evs = agenda.filter(e => e.fecha >= desde && e.fecha <= hasta);
+  if (!evs.length) return { text:"No tienes nada agendado "+etiqueta+"." };
+  const spoken = "Tienes "+evs.length+(evs.length===1?" evento ":" eventos ")+etiqueta+": " +
+    evs.map(e => e.titulo+(e.hora? " a las "+e.hora : "")+(desde!==hasta? " el "+fechaBonita(e.fecha):"")).join(". ");
+  const html = "Agenda "+esc(etiqueta)+":<ul>" +
+    evs.map(e => "<li><b>"+(e.hora||"—")+"</b> "+esc(e.titulo)+(desde!==hasta? " <small style='color:var(--muted)'>("+esc(fechaBonita(e.fecha))+")</small>":"")+"</li>").join("") + "</ul>";
+  return { text: spoken, html };
+}
+
+/* ═══════════════ Habilidades locales (gratis, sin conexión) ═══════════════ */
+function tryMath(low){
+  let m = low.match(/(\d+[.,]?\d*)\s*(?:%|por ciento)\s*de\s*(\d+[.,]?\d*)/);
+  if (m){
+    const a = parseFloat(m[1].replace(",",".")), b = parseFloat(m[2].replace(",","."));
+    return "El "+m[1]+" % de "+m[2]+" es "+fmtNum(a/100*b)+".";
+  }
+  if (!/cu[aá]nto (?:es|son|da)|calcula|^[\d(]/.test(low)) return null;
+  let e = low
+    .replace(/cu[aá]nto (?:es|son|da)|calcula|resultado de/g," ")
+    .replace(/dividido (?:por|entre)|dividido|entre/g,"/")
+    .replace(/\bpor\b|\bx\b|multiplicado/g,"*")
+    .replace(/\bm[aá]s\b/g,"+").replace(/\bmenos\b/g,"-").replace(/,/g,".");
+  e = e.replace(/[^0-9+\-*/().\s]/g,"").trim();
+  if (!/\d/.test(e) || !/[+\-*/]/.test(e)) return null;
+  if ((e.match(/\(/g)||[]).length !== (e.match(/\)/g)||[]).length) return null;
+  try{
+    const val = Function('"use strict"; return ('+e+")")();
+    if (typeof val !== "number" || !isFinite(val)) return "Ese cálculo no me sale — revisa la operación.";
+    return "El resultado es "+fmtNum(val)+".";
+  }catch(err){ return null; }
+}
+const UNITS = {
+  km:{names:["km","kilometro","kilometros"],base:"m",f:1000}, m:{names:["metro","metros"],base:"m",f:1},
+  cm:{names:["cm","centimetro","centimetros"],base:"m",f:0.01}, mi:{names:["milla","millas"],base:"m",f:1609.34},
+  ft:{names:["pie","pies"],base:"m",f:0.3048}, in:{names:["pulgada","pulgadas"],base:"m",f:0.0254},
+  kg:{names:["kg","kilo","kilos","kilogramo","kilogramos"],base:"kg",f:1}, g:{names:["gramo","gramos"],base:"kg",f:0.001},
+  lb:{names:["libra","libras"],base:"kg",f:0.453592}, oz:{names:["onza","onzas"],base:"kg",f:0.0283495},
+  l:{names:["litro","litros"],base:"l",f:1}, gal:{names:["galon","galones"],base:"l",f:3.78541},
+  ml:{names:["ml","mililitro","mililitros"],base:"l",f:0.001}
+};
+function findUnit(w){ w = normLow(w); for (const k in UNITS) if (UNITS[k].names.includes(w)) return k; return null; }
+function tryConvert(low){
+  let m = normLow(low).match(/(-?\d+[.,]?\d*)\s*(?:grados?\s*)?(celsius|centigrados|fahrenheit)\s*(?:a|en)\s*(?:grados?\s*)?(celsius|centigrados|fahrenheit)/);
+  if (m){
+    const v = parseFloat(m[1].replace(",","."));
+    const fromF = m[2].startsWith("f"), toF = m[3].startsWith("f");
+    if (fromF === toF) return v+" grados son "+v+" grados.";
+    const out = fromF ? (v-32)*5/9 : v*9/5+32;
+    return m[1]+" °"+(fromF?"F":"C")+" son "+fmtNum(out)+" °"+(toF?"F":"C")+".";
+  }
+  m = normLow(low).match(/(\d+[.,]?\d*)\s+([a-z]+)\s+(?:a|en)\s+([a-z]+)/);
+  if (m){
+    const from = findUnit(m[2]), to = findUnit(m[3]);
+    if (from && to && UNITS[from].base === UNITS[to].base){
+      const v = parseFloat(m[1].replace(",","."));
+      return m[1]+" "+m[2]+" son "+fmtNum(v*UNITS[from].f/UNITS[to].f)+" "+m[3]+".";
+    }
+  }
+  return null;
+}
+function timeAnswer(){
+  const d = new Date(); const h = d.getHours(), min = d.getMinutes();
+  const h12 = h%12||12;
+  const part = h<12 ? "de la mañana" : (h<20 ? "de la tarde" : "de la noche");
+  const mm = min===0 ? "en punto" : (min===15 ? "y cuarto" : (min===30 ? "y media" : "y "+min));
+  return (h12===1 ? "Es la una " : "Son las "+h12+" ")+mm+", "+part+".";
+}
+const HELP_HTML =
+  "Esto es lo que sé hacer:" +
+  "<ul>" +
+  "<li><b>Conversación con IA</b>: pregúntame lo que sea; con conexión busco en Google si hace falta.</li>" +
+  "<li><b>Agenda</b>: <span class='kbd'>Agenda dentista el martes a las 10</span> · <span class='kbd'>¿Qué tengo esta semana?</span> — y con un toque lo paso al calendario del celular.</li>" +
+  "<li><b>Memoria</b>: <span class='kbd'>Recuerda que…</span> · <span class='kbd'>Apunta que hoy hice…</span> — me lo aprendo para siempre.</li>" +
+  "<li><b>Mi día</b>: te doy un resumen con recomendaciones según tu agenda y objetivos.</li>" +
+  "<li><b>Sin conexión</b>: hora y fecha, temporizadores, notas, cálculos y conversiones.</li>" +
+  "<li><span class='kbd'>Pon un temporizador de 10 minutos</span> · <span class='kbd'>Toma nota: …</span> · <span class='kbd'>Lee mis notas</span></li>" +
+  "</ul>" +
+  "En Ajustes ⚙ puedes contarme quién eres y pegar tu clave de IA gratuita.";
+function localSkills(raw){
+  const low = raw.toLowerCase().trim().replace(/[¿?¡!]+/g," ").replace(/\s+/g," ").trim();
+  if (/^ayuda$|que puedes hacer|qué puedes hacer|que sabes hacer|qué sabes hacer|como funcionas|cómo funcionas/.test(low))
+    return { text:"Puedo conversar contigo con IA, llevar tu agenda y tu memoria, darte el resumen del día, poner temporizadores, guardar notas y hacer cálculos. Aquí va la lista.", html:HELP_HTML };
+  if (/que hora|qué hora|dime la hora|hora es/.test(low)) return { text: timeAnswer() };
+  if (/que dia|qué día|que fecha|qué fecha|fecha de hoy|dia es hoy|día es hoy/.test(low))
+    return { text: "Hoy es "+new Date().toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long",year:"numeric"})+"." };
+  if (/cancela|elimina|quita|det[eé]n/.test(low) && /temporizador|alarma/.test(low)){
+    if (!timers.length) return { text:"No hay ningún temporizador en marcha." };
+    while (timers.length) removeTimer(timers[0].id);
+    return { text:"Listo, he cancelado los temporizadores." };
+  }
+  if (/temporizador|cuenta atr[aá]s|alarma/.test(low) || (/av[ií]same|recu[eé]rdame/.test(low) && /minuto|hora|segundo/.test(low))){
+    const ms = parseDurationMs(low);
+    if (ms > 0){
+      let label = ""; const lm = low.match(/recu[eé]rdame\s+(?:que\s+)?(.+?)\s+(?:en|dentro de)\s/);
+      if (lm) label = lm[1];
+      createTimer(ms, label);
+      return { text:(label? "Hecho: te aviso de «"+label+"» " : "Temporizador puesto: ")+"en "+fmtLeft(ms)+". Deja esta pantalla abierta." };
+    }
+    return { text:"¿De cuánto tiempo? Por ejemplo: «pon un temporizador de 5 minutos»." };
+  }
+  let m = raw.match(/(?:toma|crea|haz|guarda|apunta)(?:\s+una)?\s+nota:?\s+(.+)/i) || raw.match(/^nota:?\s+(.+)/i);
+  if (m){
+    notes.push({ text:m[1].trim(), at:new Date().toLocaleDateString("es-ES",{day:"numeric",month:"short"}) });
+    saveNotes();
+    return { text:"Anotado: «"+m[1].trim()+"». Tienes "+notes.length+(notes.length===1?" nota.":" notas.") };
+  }
+  if (/(?:lee|muestra|dime|ver)\s.*notas|mis notas/.test(low)){
+    if (!notes.length) return { text:"No tienes notas. Di «toma nota» y lo que quieras apuntar." };
+    return {
+      text: "Tienes "+notes.length+(notes.length===1?" nota. ":" notas. ")+notes.map((n,i)=>"Nota "+(i+1)+": "+n.text).join(". "),
+      html: "Tus notas:<ul>"+notes.map((n,i)=>"<li><b>"+(i+1)+".</b> "+esc(n.text)+" <small style='color:var(--muted)'>("+n.at+")</small></li>").join("")+"</ul>"
+    };
+  }
+  m = low.match(/borra (?:la )?nota (\d+)/);
+  if (m){
+    const i = parseInt(m[1],10)-1;
+    if (i<0 || i>=notes.length) return { text:"No encuentro esa nota." };
+    const gone = notes.splice(i,1)[0]; saveNotes();
+    return { text:"Borrada la nota «"+gone.text+"»." };
+  }
+  if (/borra (?:todas )?(?:mis |las )?notas/.test(low)){ notes = []; saveNotes(); return { text:"He borrado todas tus notas." }; }
+  /* memoria explícita */
+  m = raw.match(/^recuerda (?:que )?(.+)/i) || raw.match(/^apunta que (.+)/i) || raw.match(/^memoriza (?:que )?(.+)/i);
+  if (m){
+    memories.push({ texto:m[1].trim(), fecha:hoyISO() });
+    saveMemories(); renderMemorias();
+    return { text:"Lo recordaré: «"+m[1].trim()+"»." };
+  }
+  if (/que (recuerdas|sabes) de mi|qué (recuerdas|sabes) de mí/.test(low)){
+    if (!memories.length && !profile.sobreMi) return { text:"Todavía no sé mucho de ti. Cuéntame en Ajustes quién eres, o dime «recuerda que…»." };
+    const parts = [];
+    if (profile.nombre) parts.push("Te llamas "+profile.nombre);
+    if (profile.sobreMi) parts.push(profile.sobreMi);
+    return {
+      text:(parts.join(". ")+". "+(memories.length? "Y tengo "+memories.length+" recuerdos guardados." : "")).trim(),
+      html: esc(parts.join(". "))+(memories.length? "<ul>"+memories.slice(-8).map(x=>"<li>"+esc(x.texto)+"</li>").join("")+"</ul><small style='color:var(--muted)'>Todos en el panel Memoria 🧠</small>" : "")
+    };
+  }
+  /* agenda */
+  const ag = agendaLocalAdd(raw); if (ag) return ag;
+  const q = agendaConsulta(low); if (q) return q;
+  const conv = tryConvert(low); if (conv) return { text: conv };
+  const mt = tryMath(low); if (mt) return { text: mt };
+  return null; /* → lo intenta la IA */
+}
+
+/* ═══════════════ Cerebro IA (Gemini) ═══════════════ */
+function contadorHoy(){
+  const c = store.get("atlas2_counter", { date:"", n:0 });
+  if (c.date !== hoyISO()){ c.date = hoyISO(); c.n = 0; }
+  return c;
+}
+function sumarConsulta(){ const c = contadorHoy(); c.n++; store.set("atlas2_counter", c); refreshCounter(); }
+function refreshCounter(){
+  const c = contadorHoy();
+  $("#counter").innerHTML = "Consultas de IA hoy: <b>"+c.n+"</b> (el plan gratuito da para muchas más de 20).";
+}
+function buildSystem(){
+  const d = new Date();
+  const fechaHora = d.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long",year:"numeric"})+", "+pad(d.getHours())+":"+pad(d.getMinutes());
+  const proxEventos = agenda.filter(e => e.fecha >= hoyISO()).slice(0,15)
+    .map(e => "- "+e.fecha+(e.hora? " "+e.hora : "")+": "+e.titulo).join("\n") || "(sin eventos próximos)";
+  const recuerdos = memories.slice(-30).map(x => "- ("+x.fecha+") "+x.texto).join("\n") || "(aún no hay recuerdos guardados)";
+  return [
+    "Eres Atlas, el asistente personal de "+(profile.nombre||"la usuaria")+".",
+    "Personalidad: como JARVIS de Iron Man — cortés, sereno, eficiente, con ingenio sutil y siempre un paso adelante. Cálido pero profesional."+(profile.nombre? " Llámala "+profile.nombre+" con naturalidad." : ""),
+    "Respondes SIEMPRE en español. Tus respuestas se leen en voz alta: sé breve y claro (2 a 5 frases), amplía solo si te piden detalle. Da recomendaciones concretas y accionables, nunca genéricas.",
+    "Fecha y hora actuales: "+fechaHora+".",
+    "PERFIL DE LA USUARIA: "+(profile.sobreMi||"(sin datos aún)"),
+    "SUS OBJETIVOS: "+(profile.objetivos||"(sin datos aún)"),
+    "RECUERDOS GUARDADOS:\n"+recuerdos,
+    "AGENDA PRÓXIMA:\n"+proxEventos,
+    "ACCIONES: si la usuaria te pide explícitamente guardar un recuerdo o dato sobre su vida, crear un evento de agenda, guardar una nota o poner un temporizador, añade AL FINAL de tu respuesta una línea por acción, con este formato exacto (sin mencionarlo en el texto):",
+    '%%ATLAS%%{"accion":"recuerdo","texto":"..."}',
+    '%%ATLAS%%{"accion":"evento","titulo":"...","fecha":"YYYY-MM-DD","hora":"HH:MM"}  (hora opcional)',
+    '%%ATLAS%%{"accion":"nota","texto":"..."}',
+    '%%ATLAS%%{"accion":"temporizador","minutos":N}',
+    "Usa acciones solo ante pedidos explícitos; nunca inventes eventos ni recuerdos. Si buscaste en Google, integra el dato con naturalidad y cita el enlace en markdown si es útil."
+  ].join("\n");
+}
+async function askGemini(userText){
+  const key = (profile.apiKey||"").trim();
+  const model = profile.modelo || "gemini-2.5-flash";
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent";
+  const contents = history.slice(-10).map(h => ({ role: h.role==="model" ? "model" : "user", parts:[{ text:h.text }] }));
+  contents.push({ role:"user", parts:[{ text:userText }] });
+  const mkBody = (full) => {
+    const b = { systemInstruction:{ parts:[{ text: buildSystem() }] }, contents,
+      generationConfig:{ temperature:0.7, maxOutputTokens:2048 } };
+    if (full){
+      b.tools = [{ google_search: {} }];
+      if (model.startsWith("gemini-2.5")) b.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+    }
+    return b;
+  };
+  const call = body => fetch(url, {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", "x-goog-api-key":key },
+    body: JSON.stringify(body)
+  });
+  let res;
+  try{ res = await call(mkBody(true)); }
+  catch(e){ throw { kind:"red" }; }
+  if (res.status === 400 || res.status === 404){
+    const t = await res.text();
+    if (/api.?key/i.test(t)) throw { kind:"clave" };
+    try{ res = await call(mkBody(false)); }catch(e){ throw { kind:"red" }; }
+  }
+  if (res.status === 400 || res.status === 403) throw { kind:"clave" };
+  if (res.status === 429) throw { kind:"limite" };
+  if (!res.ok) throw { kind:"otro", code:res.status };
+  const data = await res.json();
+  const cand = data.candidates && data.candidates[0];
+  const text = cand && cand.content && cand.content.parts
+    ? cand.content.parts.map(p => p.text||"").join("").trim() : "";
+  if (!text) throw { kind:"vacio" };
+  sumarConsulta();
+  return text;
+}
+function ejecutarAcciones(text){
+  const confirmaciones = [];
+  const clean = text.replace(/%%ATLAS%%\s*(\{[^\n]*\})/g, (all, json) => {
+    try{
+      const a = JSON.parse(json);
+      if (a.accion === "recuerdo" && a.texto){
+        memories.push({ texto:String(a.texto), fecha:hoyISO() }); saveMemories(); renderMemorias();
+        confirmaciones.push("✓ Guardado en memoria: «"+esc(String(a.texto))+"»");
+      } else if (a.accion === "evento" && a.titulo && /^\d{4}-\d{2}-\d{2}$/.test(a.fecha||"")){
+        const hora = /^\d{2}:\d{2}$/.test(a.hora||"") ? a.hora : null;
+        const ev = addEvento(String(a.titulo), a.fecha, hora);
+        confirmaciones.push('✓ Evento: <b>'+esc(ev.titulo)+"</b> — "+esc(fechaBonita(ev.fecha))+(hora? ", "+hora : "")+' · <a href="'+gcalLink(ev)+'" target="_blank" rel="noopener">Añadir al calendario del celular ↗</a>');
+      } else if (a.accion === "nota" && a.texto){
+        notes.push({ text:String(a.texto), at:new Date().toLocaleDateString("es-ES",{day:"numeric",month:"short"}) }); saveNotes();
+        confirmaciones.push("✓ Nota guardada");
+      } else if (a.accion === "temporizador" && a.minutos > 0){
+        createTimer(Math.min(a.minutos, 24*60)*60000, "");
+        confirmaciones.push("✓ Temporizador de "+a.minutos+" min en marcha");
+      }
+    }catch(e){}
+    return "";
+  }).trim();
+  return { clean, confirmaciones };
+}
+function fallbackSinIA(raw){
+  const tieneClave = !!(profile.apiKey||"").trim();
+  const online = navigator.onLine;
+  let motivo;
+  if (!tieneClave) motivo = "Para responder preguntas abiertas necesito mi cerebro de IA: entra en Ajustes ⚙ y pega tu clave gratuita (ahí te explico cómo conseguirla en 5 minutos).";
+  else if (!online) motivo = "Ahora mismo no hay conexión, así que solo puedo usar mis funciones locales (hora, agenda, notas, temporizadores, cálculos).";
+  else motivo = "No pude conectar con la IA en este momento.";
+  return { text: motivo, html: esc(motivo)+"<br>"+searchLink(raw) };
+}
+
+/* ═══════════════ Resumen del día ═══════════════ */
+function resumenLocal(){
+  const hoy = hoyISO();
+  const evs = agenda.filter(e => e.fecha === hoy);
+  const d = new Date();
+  let s = "Hoy es "+d.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"})+". ";
+  s += evs.length
+    ? "Tienes "+evs.length+(evs.length===1? " evento" : " eventos")+" hoy: "+evs.map(e=>e.titulo+(e.hora? " a las "+e.hora : "")).join(", ")+". "
+    : "No tienes eventos agendados para hoy. ";
+  return s;
+}
+
+/* ═══════════════ Pipeline de comandos ═══════════════ */
+async function handleCommand(raw){
+  const text = raw.trim();
+  if (text.length < 2){ idleStatus(); return; }
+  if (wakeMode && /^(?:ok|okay|okey|oye|hola|hey)?[,.\s]*atlas[,.\s]*$/i.test(text)){ esperaOrden(); return; }
+  addBubble("user", text);
+  history.push({ role:"user", text }); saveHistory();
+
+  /* «Mi día»: resumen local + recomendaciones de la IA */
+  const esMiDia = /^mi d[ií]a$|resumen del d[ií]a|briefing/i.test(text);
+
+  /* 1) habilidades locales, gratis y sin conexión */
+  if (!esMiDia){
+    const local = localSkills(text);
+    if (local){
+      addBubble("atlas", local.text, local.html);
+      history.push({ role:"model", text: local.text }); saveHistory();
+      speak(local.text);
+      return;
+    }
+  }
+
+  /* 2) cerebro IA */
+  const tieneClave = !!(profile.apiKey||"").trim();
+  if (tieneClave && navigator.onLine){
+    thinking = true; setPhase("thinking"); setStatus("Pensando…", "hot");
+    stopRec();
+    const pregunta = esMiDia
+      ? "Este es mi contexto de hoy: "+resumenLocal()+" Dame mi resumen del día: qué tengo, qué me recomiendas priorizar según mis objetivos, y un consejo útil para hoy."
+      : text;
+    try{
+      const respuesta = await askGemini(pregunta);
+      const { clean, confirmaciones } = ejecutarAcciones(respuesta);
+      const html = md(clean) + (confirmaciones.length? '<span class="accion">'+confirmaciones.join("<br>")+"</span>" : "");
+      thinking = false;
+      addBubble("atlas", clean, html);
+      history.push({ role:"model", text: clean }); saveHistory();
+      speak(clean);
+    }catch(err){
+      thinking = false;
+      let msg;
+      if (err.kind === "clave") msg = { text:"Tu clave de IA no funciona: revísala en Ajustes ⚙ (debe empezar por «AIza»). También puedes crear una nueva gratis en aistudio.google.com." };
+      else if (err.kind === "limite") msg = { text:"La IA gratuita alcanzó su límite por ahora. Espera un minuto y vuelve a intentarlo." };
+      else if (err.kind === "red") msg = fallbackSinIA(text);
+      else if (err.kind === "vacio") msg = { text:"La IA no devolvió respuesta esta vez. Prueba a reformular la pregunta." };
+      else msg = { text:"La IA dio un error inesperado (código "+ (err.code||"desconocido") +"). Vuelve a intentarlo en un momento." };
+      addBubble("atlas", msg.text, msg.html);
+      speak(msg.text);
+    }
+    return;
+  }
+
+  /* 3) sin IA disponible */
+  if (esMiDia){
+    const s = resumenLocal() + (tieneClave ? "" : "Configura tu clave de IA en Ajustes ⚙ y podré darte también recomendaciones personalizadas.");
+    addBubble("atlas", s);
+    history.push({ role:"model", text:s }); saveHistory();
+    speak(s);
+    return;
+  }
+  const fb = fallbackSinIA(text);
+  addBubble("atlas", fb.text, fb.html);
+  speak(fb.text);
+}
+
+/* ═══════════════ Orbe (canvas) ═══════════════ */
+(function initOrb(){
+  const canvas = $("#orb"), ctx = canvas.getContext("2d");
+  const DPR = Math.min(window.devicePixelRatio||1, 2);
+  const SIZE = 150;
+  canvas.width = SIZE*DPR; canvas.height = SIZE*DPR;
+  ctx.scale(DPR, DPR);
+  const C = SIZE/2, R = SIZE/2-6;
+  const stars = [];
+  for (let i=0;i<24;i++){
+    const a = Math.random()*Math.PI*2, r = Math.sqrt(Math.random())*R*0.85;
+    stars.push({ x:C+Math.cos(a)*r, y:C+Math.sin(a)*r, s:0.6+Math.random()*1.1, p:Math.random()*Math.PI*2 });
+  }
+  let rot = 0;
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function draw(t){
+    ctx.clearRect(0,0,SIZE,SIZE);
+    const g = ctx.createRadialGradient(C-R*0.35, C-R*0.4, R*0.1, C, C, R);
+    g.addColorStop(0,"#233158"); g.addColorStop(0.65,"#141C36"); g.addColorStop(1,"#0B1122");
+    ctx.beginPath(); ctx.arc(C,C,R,0,Math.PI*2); ctx.fillStyle = g; ctx.fill();
+    ctx.save(); ctx.beginPath(); ctx.arc(C,C,R,0,Math.PI*2); ctx.clip();
+    for (const st of stars){
+      ctx.globalAlpha = Math.max(0.15, reduced? 0.7 : 0.45+0.4*Math.sin(t/700+st.p));
+      ctx.fillStyle = "#EAEEFB";
+      ctx.beginPath(); ctx.arc(st.x, st.y, st.s, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = "rgba(240,195,106,.4)"; ctx.lineWidth = 1;
+    for (let i=0;i<3;i++){
+      ctx.beginPath(); ctx.ellipse(C, C, R*0.92, R*0.34, rot+i*Math.PI/3, 0, Math.PI*2); ctx.stroke();
+    }
+    ctx.strokeStyle = "rgba(240,195,106,.25)";
+    ctx.beginPath(); ctx.ellipse(C, C, R*0.55, R*0.92, rot*0.6, 0, Math.PI*2); ctx.stroke();
+    ctx.restore();
+    ctx.beginPath(); ctx.arc(C,C,R,0,Math.PI*2);
+    ctx.strokeStyle = "rgba(240,195,106,.5)"; ctx.lineWidth = 1.2; ctx.stroke();
+  }
+  if (reduced) draw(0);
+  else (function loop(t){ rot += 0.0035; draw(t||0); requestAnimationFrame(loop); })(0);
+})();
+
+/* ═══════════════ Paneles ═══════════════ */
+const sheets = { ajustes:$("#sheetAjustes"), agenda:$("#sheetAgenda"), memoria:$("#sheetMemoria") };
+function openSheet(name){
+  closeSheets();
+  $("#backdrop").classList.add("open");
+  sheets[name].classList.add("open");
+  sheets[name].setAttribute("aria-hidden","false");
+  if (name==="agenda") renderAgenda();
+  if (name==="memoria") renderMemorias();
+  if (name==="ajustes") refreshCounter();
+}
+function closeSheets(){
+  $("#backdrop").classList.remove("open");
+  for (const k in sheets){ sheets[k].classList.remove("open"); sheets[k].setAttribute("aria-hidden","true"); }
+}
+$("#openAjustes").onclick = () => openSheet("ajustes");
+$("#openAgenda").onclick  = () => openSheet("agenda");
+$("#openMemoria").onclick = () => openSheet("memoria");
+$("#iaChip").onclick      = () => openSheet("ajustes");
+$("#backdrop").onclick    = closeSheets;
+document.querySelectorAll("[data-close]").forEach(b => b.onclick = closeSheets);
+
+function renderMemorias(){
+  const box = $("#memList"); box.innerHTML = "";
+  if (!memories.length){ box.innerHTML = '<div class="empty">Aún no hay recuerdos. Di «recuerda que…» o añade uno abajo.</div>'; return; }
+  memories.slice().reverse().forEach(mem => {
+    const row = document.createElement("div"); row.className = "row";
+    row.innerHTML = '<span class="grow">'+esc(mem.texto)+"<br><small>"+esc(mem.fecha)+"</small></span>";
+    const del = document.createElement("button");
+    del.className = "del"; del.textContent = "✕"; del.setAttribute("aria-label","Borrar recuerdo");
+    del.onclick = () => { memories = memories.filter(x => x !== mem); saveMemories(); renderMemorias(); };
+    row.appendChild(del);
+    box.appendChild(row);
+  });
+}
+$("#btnAddMem").onclick = () => {
+  const v = $("#memNueva").value.trim();
+  if (!v) return;
+  memories.push({ texto:v, fecha:hoyISO() }); saveMemories();
+  $("#memNueva").value = ""; renderMemorias();
+};
+$("#btnAddEvento").onclick = () => {
+  const t = $("#evTitulo").value.trim(), f = $("#evFecha").value, h = $("#evHora").value;
+  if (!t || !f) return;
+  addEvento(t, f, h||null);
+  $("#evTitulo").value = ""; $("#evHora").value = "";
+};
+
+/* Ajustes */
+function cargarAjustesUI(){
+  $("#inNombre").value = profile.nombre; $("#inSobreMi").value = profile.sobreMi;
+  $("#inObjetivos").value = profile.objetivos; $("#inKey").value = profile.apiKey;
+  $("#selModelo").value = profile.modelo; $("#selDialecto").value = profile.lang;
+}
+$("#guardarAjustes").onclick = () => {
+  profile.nombre = $("#inNombre").value.trim();
+  profile.sobreMi = $("#inSobreMi").value.trim();
+  profile.objetivos = $("#inObjetivos").value.trim();
+  profile.apiKey = $("#inKey").value.trim();
+  profile.modelo = $("#selModelo").value;
+  profile.lang = $("#selDialecto").value;
+  saveProfile(); refreshIaChip(); closeSheets();
+  if (wakeMode) startWakeRec();
+  const s = profile.nombre ? "Ajustes guardados. ¡Encantado de conocerte, "+profile.nombre+"!" : "Ajustes guardados.";
+  addBubble("atlas", s); speak(s);
+};
+$("#verKey").onclick = () => {
+  const k = $("#inKey");
+  k.type = k.type === "password" ? "text" : "password";
+};
+$("#btnExport").onclick = () => {
+  const data = { perfil:{ nombre:profile.nombre, sobreMi:profile.sobreMi, objetivos:profile.objetivos },
+    memorias:memories, agenda, notas:notes };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type:"application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "atlas-copia-"+hoyISO()+".json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+$("#btnImport").onclick = () => $("#fileImport").click();
+$("#fileImport").onchange = ev => {
+  const f = ev.target.files[0]; if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const d = JSON.parse(reader.result);
+      if (d.perfil){ profile.nombre = d.perfil.nombre||profile.nombre; profile.sobreMi = d.perfil.sobreMi||profile.sobreMi; profile.objetivos = d.perfil.objetivos||profile.objetivos; saveProfile(); }
+      if (Array.isArray(d.memorias)) { memories = d.memorias; saveMemories(); }
+      if (Array.isArray(d.agenda)) { agenda = d.agenda; saveAgenda(); }
+      if (Array.isArray(d.notas)) { notes = d.notas; saveNotes(); }
+      cargarAjustesUI(); renderAgenda(); renderMemorias();
+      addBubble("atlas","Copia restaurada correctamente.");
+    }catch(e){ addBubble("atlas","No pude leer ese archivo de copia."); }
+  };
+  reader.readAsText(f);
+};
+$("#btnBorrarTodo").onclick = () => {
+  if (!confirm("¿Borrar TODOS los datos de Atlas en este dispositivo? (perfil, memoria, agenda, notas)")) return;
+  ["atlas2_profile","atlas2_memories","atlas2_agenda","atlas2_notes","atlas2_history","atlas2_counter"].forEach(k => localStorage.removeItem(k));
+  location.reload();
+};
+
+/* ═══════════════ Controles principales ═══════════════ */
+function refreshIaChip(){
+  const chip = $("#iaChip"), txt = $("#iaChipTxt");
+  const tieneClave = !!(profile.apiKey||"").trim();
+  if (tieneClave && navigator.onLine){ chip.classList.add("on"); txt.textContent = "IA lista"; }
+  else if (tieneClave){ chip.classList.remove("on"); txt.textContent = "IA sin conexión"; }
+  else { chip.classList.remove("on"); txt.textContent = "IA sin configurar — toca aquí"; }
+}
+window.addEventListener("online", refreshIaChip);
+window.addEventListener("offline", refreshIaChip);
+
+$("#wakeBtn").addEventListener("click", () => {
+  ensureAudio();
+  wakeMode = !wakeMode;
+  $("#wakeBtn").setAttribute("aria-pressed", String(wakeMode));
+  if (wakeMode){
+    if (!SRClass){
+      wakeMode = false; $("#wakeBtn").setAttribute("aria-pressed","false");
+      setStatus("Este navegador no soporta voz; escríbeme abajo.", "err");
+      return;
+    }
+    requestWakeLock(); startWakeRec();
+    setPhase("wake"); setStatus("Escuchando… di «OK Atlas»");
+  } else {
+    awaitingCommand = false; stopRec(); releaseWakeLock(); idleStatus();
+  }
+});
+$("#orbBtn").addEventListener("click", () => {
+  if (speaking){ speechSynthesis.cancel(); return; }
+  if (pttActive){ stopRec(); pttActive = false; idleStatus(); resumeListening(); return; }
+  startPtt();
+});
+$("#muteBtn").addEventListener("click", () => {
+  profile.muted = !profile.muted; saveProfile(); applyMuteUI();
+  if (profile.muted) speechSynthesis.cancel();
+});
+function applyMuteUI(){
+  const on = !profile.muted;
+  $("#muteBtn").setAttribute("aria-pressed", String(on));
+  $("#muteBtn").title = on ? "Voz activada" : "Voz silenciada";
+  $("#volOn").style.display = on ? "" : "none";
+  $("#volOff").style.display = on ? "none" : "";
+}
+$("#form").addEventListener("submit", ev => {
+  ev.preventDefault();
+  const v = $("#input").value.trim();
+  if (!v) return;
+  $("#input").value = "";
+  ensureAudio(); handleCommand(v);
+});
+$("#sugg").addEventListener("click", ev => {
+  const b = ev.target.closest("button");
+  if (!b) return;
+  if (b.dataset.fill){ const inp = $("#input"); inp.value = b.dataset.fill; inp.focus(); return; }
+  if (b.dataset.q){ ensureAudio(); handleCommand(b.dataset.q); }
+});
+
+/* ═══════════════ Arranque ═══════════════ */
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost"))
+  navigator.serviceWorker.register("./sw.js").catch(()=>{});
+cargarAjustesUI(); applyMuteUI(); refreshIaChip(); renderTimers();
+if (!SRClass) $("#srBanner").style.display = "";
+(function bienvenida(){
+  const tieneClave = !!(profile.apiKey||"").trim();
+  if (!tieneClave){
+    addBubble("atlas", "", "¡Hola! Soy <b>Atlas</b>, tu asistente personal. Para desbloquear mi inteligencia completa:" +
+      "<ul>" +
+      "<li>Toca <b>Ajustes ⚙</b> y cuéntame quién eres y tus objetivos.</li>" +
+      "<li>Pega tu <b>clave de IA gratuita</b> (en Ajustes te explico cómo conseguirla en 5 minutos).</li>" +
+      "<li>Activa el <b>modo «OK Atlas»</b> para hablarme con la voz.</li>" +
+      "</ul>" +
+      "Mientras tanto ya puedo darte la hora, poner temporizadores, llevar tu agenda y tus notas — todo sin conexión.");
+  } else {
+    const saludo = (profile.nombre? "Hola, "+profile.nombre+". " : "Hola. ") + resumenLocal() + "¿En qué te ayudo?";
+    addBubble("atlas", saludo);
+  }
+})();
+</script>
+</body>
+</html>
